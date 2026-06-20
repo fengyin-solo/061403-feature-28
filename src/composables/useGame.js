@@ -44,33 +44,52 @@ export function useGame() {
   }
 
   function checkGameOver() {
+    if (gameOver.value) return
+
     if (temperature.value <= 0) {
       if (isDying.value) {
         endDyingPhase(false)
       } else {
-        gameOver.value = true
-        gameOverReason.value = '体温过低，你在严寒中失去了意识...'
-        stopTimers()
-        addLog('游戏结束：体温过低！', 'danger')
+        startDyingPhase()
       }
-    } else if (temperature.value <= DYING_THRESHOLD && !isDying.value && !gameOver.value) {
+      return
+    }
+
+    if (temperature.value <= DYING_THRESHOLD && !isDying.value) {
       startDyingPhase()
     }
+
     if (temperature.value >= 100) {
       temperature.value = 100
     }
   }
 
   function startDyingPhase() {
+    if (isDying.value || gameOver.value) return
+
     isDying.value = true
     rescueCountdown.value = RESCUE_DURATION
+
     stopTimers()
+
     addLog('⚠️ 你陷入了濒死状态！快用库存资源抢救自己！', 'danger')
 
     rescueTimer = setInterval(() => {
+      if (!isDying.value) {
+        clearInterval(rescueTimer)
+        rescueTimer = null
+        return
+      }
+
       rescueCountdown.value--
       temperature.value = Math.max(0, temperature.value - 1)
-      if (rescueCountdown.value <= 0 || temperature.value <= 0) {
+
+      if (temperature.value <= 0) {
+        endDyingPhase(false)
+        return
+      }
+
+      if (rescueCountdown.value <= 0) {
         endDyingPhase(false)
       }
     }, 1000)
@@ -81,18 +100,26 @@ export function useGame() {
       clearInterval(rescueTimer)
       rescueTimer = null
     }
+
+    if (!isDying.value) return
     isDying.value = false
 
     if (success) {
       addLog('🎉 抢救成功！你从鬼门关回来了！', 'success')
-      startTimers()
-      if (!isDay.value && !nightConsumptionTimer) {
-        startNightCycle()
-      }
+      resumeGame()
     } else {
       gameOver.value = true
       gameOverReason.value = '抢救失败，你在严寒中永远闭上了眼睛...'
       addLog('游戏结束：抢救失败！', 'danger')
+    }
+  }
+
+  function resumeGame() {
+    startTimers()
+    if (!isDay.value && !nightConsumptionTimer) {
+      nightConsumptionTimer = setInterval(() => {
+        consumeHeat()
+      }, 1000)
     }
   }
 
@@ -214,7 +241,7 @@ export function useGame() {
   }
 
   function chopWood() {
-    if (gameOver.value || isNight.value) return
+    if (gameOver.value || isDying.value || isNight.value) return
     
     const multiplier = isBlizzard.value ? 2 : 1
     const tempCost = 5 * multiplier
@@ -233,7 +260,7 @@ export function useGame() {
   }
 
   function hunt() {
-    if (gameOver.value || isNight.value) return
+    if (gameOver.value || isDying.value || isNight.value) return
     
     const multiplier = isBlizzard.value ? 2 : 1
     const tempCost = 8 * multiplier
@@ -258,7 +285,7 @@ export function useGame() {
   }
 
   function makeTools() {
-    if (gameOver.value || isNight.value) return
+    if (gameOver.value || isDying.value || isNight.value) return
     if (wood.value < 2 || hide.value < 1) {
       addLog('材料不足：需要 2 木头和 1 兽皮', 'warning')
       return
@@ -277,7 +304,7 @@ export function useGame() {
   }
 
   function makeFire() {
-    if (gameOver.value || !canMakeFire.value) {
+    if (gameOver.value || isDying.value || !canMakeFire.value) {
       addLog('木头不足：生火需要 3 木头', 'warning')
       return
     }
@@ -291,7 +318,7 @@ export function useGame() {
   }
 
   function eatFood() {
-    if (gameOver.value || food.value < 1) {
+    if (gameOver.value || isDying.value || food.value < 1) {
       addLog('没有食物了！', 'warning')
       return
     }

@@ -61,6 +61,7 @@
           <ActionPanel 
             :isNight="isNight"
             :gameOver="gameOver"
+            :isDying="isDying"
             :canFire="canMakeFire"
             :canCraft="wood >= 2 && hide >= 1"
             :huntRate="huntSuccessRate"
@@ -78,6 +79,20 @@
         <LogPanel :logs="actionLog" />
       </div>
     </main>
+
+    <DyingRescue 
+      v-if="isDying"
+      :countdown="rescueCountdown"
+      :temperature="temperature"
+      :wood="wood"
+      :food="food"
+      :hide="hide"
+      :tools="tools"
+      @fire="handleRescueFire"
+      @eat="handleRescueEat"
+      @hide="handleRescueHide"
+      @tools="handleRescueTools"
+    />
 
     <GameOver 
       v-if="gameOver"
@@ -104,6 +119,7 @@ import ActionPanel from './components/ActionPanel.vue'
 import LogPanel from './components/LogPanel.vue'
 import SaveManager from './components/SaveManager.vue'
 import GameOver from './components/GameOver.vue'
+import DyingRescue from './components/DyingRescue.vue'
 
 const {
   temperature,
@@ -120,6 +136,8 @@ const {
   gameOverReason,
   actionLog,
   isDanger,
+  isDying,
+  rescueCountdown,
   canMakeFire,
   huntSuccessRate,
   chopWood,
@@ -127,6 +145,10 @@ const {
   makeTools,
   makeFire,
   eatFood,
+  rescueMakeFire,
+  rescueEatFood,
+  rescueUseHide,
+  rescueUseTools,
   saveGame,
   loadGame,
   getSaveSlots,
@@ -220,6 +242,45 @@ function handleDelete(slotName) {
 
 function handleRestart() {
   restartGame()
+}
+
+function handleRescueFire() {
+  if (wood.value >= 3) {
+    playFire()
+    rescueMakeFire()
+    playSuccess()
+  } else {
+    playWarning()
+  }
+}
+
+function handleRescueEat() {
+  if (food.value > 0) {
+    playEat()
+    rescueEatFood()
+  } else {
+    playWarning()
+  }
+}
+
+function handleRescueHide() {
+  if (hide.value > 0) {
+    playCraft()
+    rescueUseHide()
+    playSuccess()
+  } else {
+    playWarning()
+  }
+}
+
+function handleRescueTools() {
+  if (tools.value > 0) {
+    playCraft()
+    rescueUseTools()
+    playSuccess()
+  } else {
+    playWarning()
+  }
 }
 
 function showSaveManager() {

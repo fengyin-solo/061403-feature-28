@@ -7,7 +7,7 @@
     <div class="actions-grid">
       <button 
         class="action-btn" 
-        :class="{ disabled: isNight || gameOver }"
+        :class="{ disabled: isNight || gameOver || isDying }"
         @click="$emit('chop')"
       >
         <span class="btn-icon">🪓</span>
@@ -16,7 +16,7 @@
       </button>
       <button 
         class="action-btn" 
-        :class="{ disabled: isNight || gameOver }"
+        :class="{ disabled: isNight || gameOver || isDying }"
         @click="$emit('hunt')"
       >
         <span class="btn-icon">🏹</span>
@@ -26,7 +26,7 @@
       </button>
       <button 
         class="action-btn" 
-        :class="{ disabled: isNight || gameOver || !canCraft }"
+        :class="{ disabled: isNight || gameOver || isDying || !canCraft }"
         @click="$emit('craft')"
       >
         <span class="btn-icon">🔨</span>
@@ -36,7 +36,7 @@
       </button>
       <button 
         class="action-btn fire-btn" 
-        :class="{ disabled: !canFire || gameOver }"
+        :class="{ disabled: !canFire || gameOver || isDying }"
         @click="$emit('fire')"
       >
         <span class="btn-icon">🔥</span>
@@ -46,7 +46,7 @@
       </button>
       <button 
         class="action-btn food-btn" 
-        :class="{ disabled: food <= 0 || gameOver }"
+        :class="{ disabled: food <= 0 || gameOver || isDying }"
         @click="$emit('eat')"
       >
         <span class="btn-icon">🍖</span>
@@ -62,6 +62,7 @@
 defineProps({
   isNight: { type: Boolean, default: false },
   gameOver: { type: Boolean, default: false },
+  isDying: { type: Boolean, default: false },
   canFire: { type: Boolean, default: false },
   canCraft: { type: Boolean, default: false },
   huntRate: { type: Number, default: 0.3 },

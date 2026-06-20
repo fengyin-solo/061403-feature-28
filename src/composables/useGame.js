@@ -13,15 +13,21 @@ export function useGame() {
   const gameOver = ref(false)
   const gameOverReason = ref('')
   const actionLog = ref([])
+  const isDying = ref(false)
+  const rescueCountdown = ref(15)
 
   const DAY_DURATION = 30000
   const NIGHT_DURATION = 20000
   const HEAT_CONSUMPTION_RATE = 2
   const BLIZZARD_CHANCE = 0.15
+  const DYING_THRESHOLD = 25
+  const RESCUE_SUCCESS_TEMP = 40
+  const RESCUE_DURATION = 15
 
   let dayNightTimer = null
   let nightConsumptionTimer = null
   let autoSaveTimer = null
+  let rescueTimer = null
 
   const isNight = computed(() => !isDay.value)
   const isDanger = computed(() => temperature.value < 30)
@@ -38,19 +44,122 @@ export function useGame() {
   }
 
   function checkGameOver() {
-    if (temperature.value <= 20) {
-      gameOver.value = true
-      gameOverReason.value = '体温过低，你在严寒中失去了意识...'
-      stopTimers()
-      addLog('游戏结束：体温过低！', 'danger')
+    if (temperature.value <= 0) {
+      if (isDying.value) {
+        endDyingPhase(false)
+      } else {
+        gameOver.value = true
+        gameOverReason.value = '体温过低，你在严寒中失去了意识...'
+        stopTimers()
+        addLog('游戏结束：体温过低！', 'danger')
+      }
+    } else if (temperature.value <= DYING_THRESHOLD && !isDying.value && !gameOver.value) {
+      startDyingPhase()
     }
     if (temperature.value >= 100) {
       temperature.value = 100
     }
   }
 
+  function startDyingPhase() {
+    isDying.value = true
+    rescueCountdown.value = RESCUE_DURATION
+    stopTimers()
+    addLog('⚠️ 你陷入了濒死状态！快用库存资源抢救自己！', 'danger')
+
+    rescueTimer = setInterval(() => {
+      rescueCountdown.value--
+      temperature.value = Math.max(0, temperature.value - 1)
+      if (rescueCountdown.value <= 0 || temperature.value <= 0) {
+        endDyingPhase(false)
+      }
+    }, 1000)
+  }
+
+  function endDyingPhase(success) {
+    if (rescueTimer) {
+      clearInterval(rescueTimer)
+      rescueTimer = null
+    }
+    isDying.value = false
+
+    if (success) {
+      addLog('🎉 抢救成功！你从鬼门关回来了！', 'success')
+      startTimers()
+      if (!isDay.value && !nightConsumptionTimer) {
+        startNightCycle()
+      }
+    } else {
+      gameOver.value = true
+      gameOverReason.value = '抢救失败，你在严寒中永远闭上了眼睛...'
+      addLog('游戏结束：抢救失败！', 'danger')
+    }
+  }
+
+  function rescueMakeFire() {
+    if (!isDying.value || wood.value < 3) {
+      addLog('木头不足，无法生火抢救！', 'warning')
+      return false
+    }
+    wood.value -= 3
+    const heatGained = Math.floor(Math.random() * 15) + 20
+    heat.value = Math.min(100, heat.value + heatGained)
+    const tempGained = Math.floor(Math.random() * 8) + 12
+    temperature.value = Math.min(100, temperature.value + tempGained)
+    addLog(`🔥 紧急生火：+${heatGained}热量，+${tempGained}体温`, 'success')
+    checkRescueSuccess()
+    return true
+  }
+
+  function rescueEatFood() {
+    if (!isDying.value || food.value < 1) {
+      addLog('没有食物可吃！', 'warning')
+      return false
+    }
+    food.value -= 1
+    const tempGained = Math.floor(Math.random() * 8) + 8
+    temperature.value = Math.min(100, temperature.value + tempGained)
+    addLog(`🍖 紧急进食：+${tempGained}体温`, 'success')
+    checkRescueSuccess()
+    return true
+  }
+
+  function rescueUseHide() {
+    if (!isDying.value || hide.value < 1) {
+      addLog('没有兽皮可用！', 'warning')
+      return false
+    }
+    hide.value -= 1
+    const tempGained = Math.floor(Math.random() * 6) + 6
+    temperature.value = Math.min(100, temperature.value + tempGained)
+    addLog(`🦊 用兽皮裹身：+${tempGained}体温`, 'success')
+    checkRescueSuccess()
+    return true
+  }
+
+  function rescueUseTools() {
+    if (!isDying.value || tools.value < 1) {
+      addLog('没有工具可用！', 'warning')
+      return false
+    }
+    tools.value -= 1
+    const heatGained = Math.floor(Math.random() * 10) + 10
+    heat.value = Math.min(100, heat.value + heatGained)
+    const tempGained = Math.floor(Math.random() * 10) + 10
+    temperature.value = Math.min(100, temperature.value + tempGained)
+    addLog(`🔧 工具急救：+${heatGained}热量，+${tempGained}体温`, 'success')
+    checkRescueSuccess()
+    return true
+  }
+
+  function checkRescueSuccess() {
+    if (temperature.value >= RESCUE_SUCCESS_TEMP) {
+      endDyingPhase(true)
+    }
+  }
+
   function consumeHeat() {
-    if (gameOver.value) return
+    if (gameOver.value || isDying.value) return
     
     const multiplier = isBlizzard.value ? 2 : 1
     const consumption = HEAT_CONSUMPTION_RATE * multiplier
@@ -217,6 +326,10 @@ export function useGame() {
       clearInterval(autoSaveTimer)
       autoSaveTimer = null
     }
+    if (rescueTimer) {
+      clearInterval(rescueTimer)
+      rescueTimer = null
+    }
   }
 
   function saveGame(slot = 'manual') {
@@ -256,6 +369,8 @@ export function useGame() {
       isBlizzard.value = gameState.isBlizzard
       gameOver.value = false
       gameOverReason.value = ''
+      isDying.value = false
+      rescueCountdown.value = RESCUE_DURATION
       actionLog.value = []
       
       stopTimers()
@@ -309,6 +424,8 @@ export function useGame() {
     isBlizzard.value = false
     gameOver.value = false
     gameOverReason.value = ''
+    isDying.value = false
+    rescueCountdown.value = RESCUE_DURATION
     actionLog.value = []
     
     stopTimers()
@@ -341,6 +458,8 @@ export function useGame() {
     gameOverReason,
     actionLog,
     isDanger,
+    isDying,
+    rescueCountdown,
     canMakeFire,
     canHunt,
     huntSuccessRate,
@@ -349,6 +468,10 @@ export function useGame() {
     makeTools,
     makeFire,
     eatFood,
+    rescueMakeFire,
+    rescueEatFood,
+    rescueUseHide,
+    rescueUseTools,
     saveGame,
     loadGame,
     getSaveSlots,
